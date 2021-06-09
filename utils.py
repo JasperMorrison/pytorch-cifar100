@@ -7,13 +7,134 @@ import sys
 import re
 import datetime
 
-import numpy
+import numpy,random
+import numpy as np
 
 import torch
 from torch.optim.lr_scheduler import _LRScheduler
 import torchvision
 import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
+
+from PIL import Image
+import torch.nn as nn
+from torchvision import datasets
+
+import pandas as pd
+from randaugment import RandAugment
+
+class ImageCut(object):
+    def __init__(self, h_begin=0.0, h_scale=1.0, w_scale=1.0, p=0.5):
+        self.h_scale = h_scale
+        self.w_scale = w_scale
+        self.h_begin = h_begin
+        self.p = p
+    def __call__(self, img):
+        if random.uniform(0, 1) < self.p:
+            w,h = img.size
+            box = (0, int(h*self.h_begin), int(w*self.w_scale), int(h*self.h_scale) + int(h*self.h_begin))
+            img = img.crop(box)
+        return img 
+
+class AddPepperNoise(object):
+    """增加椒盐噪声
+    Args:
+        snr （float）: Signal Noise Rate
+        p (float): 概率值，依概率执行该操作
+    """
+
+    def __init__(self, snr, p=0.9):
+        assert isinstance(snr, float) or (isinstance(p, float))
+        self.snr = snr
+        self.p = p
+
+    # transform 会调用该方法
+    def __call__(self, img):
+        """
+        Args:
+            img (PIL Image): PIL Image
+        Returns:
+            PIL Image: PIL image.
+        """
+        # 如果随机概率小于 seld.p，则执行 transform
+        if random.uniform(0, 1) < self.p:
+            # 把 image 转为 array
+            img_ = np.array(img).copy()
+            # 获得 shape
+            h, w, c = img_.shape
+            # 信噪比
+            signal_pct = self.snr
+            # 椒盐噪声的比例 = 1 -信噪比
+            noise_pct = (1 - self.snr)
+            # 选择的值为 (0, 1, 2)，每个取值的概率分别为 [signal_pct, noise_pct/2., noise_pct/2.]
+            # 椒噪声和盐噪声分别占 noise_pct 的一半
+            # 1 为盐噪声，2 为 椒噪声
+            mask = np.random.choice((0, 1, 2), size=(h, w, 1), p=[signal_pct, noise_pct/2., noise_pct/2.])
+            mask = np.repeat(mask, c, axis=2)
+            img_[mask == 1] = np.random.randint(256)   # 盐噪声
+            img_[mask == 2] = np.random.randint(50)   # 椒噪声
+            # 再转换为 image
+            return Image.fromarray(img_.astype('uint8')).convert('RGB')
+        # 如果随机概率大于 seld.p，则直接返回原图
+        else:
+            return img
+
+class MyDataset(Dataset):
+  def __init__(self , csv, transform=None ):
+    self.csv = csv
+    self.df = pd.read_csv(self.csv)
+    self.img_dir = self.csv.split('.')[:-1][0]
+    self.transforms = transform
+
+  def __getitem__(self,idx):
+    d = self.df.iloc[idx]
+    img_path = os.path.join(self.img_dir,d.image)
+    image = Image.open(img_path).convert("RGB")
+    label = torch.tensor(d[1:].tolist() , dtype=torch.float32)
+
+    if self.transforms is not None:
+      image = self.transforms(image)
+
+    sample = {'image':image, 'label':label, 'img_path':img_path}
+    return sample
+
+  def __len__(self):
+    return len(self.df)
+
+class ImageFolderWithPaths(datasets.ImageFolder):
+    """Custom dataset that includes image file paths. Extends
+    torchvision.datasets.ImageFolder
+    """
+ 
+    # override the __getitem__ method. this is the method that dataloader calls
+    def __getitem__(self, index):
+        # this is what ImageFolder normally returns 
+        original_tuple = super(ImageFolderWithPaths, self).__getitem__(index)
+        # the image file path
+        path = self.imgs[index][0]
+        # make a new tuple that includes original and the path
+        tuple_with_path = (original_tuple + (path,))
+        return tuple_with_path
+
+def get_pretrained_network(args):
+    #import torchvision.models as models
+    import models.pretrained_resnet as models
+    if args.net == 'resnet18':
+        resnet18 = models.resnet18(pretrained=True)
+        resnet18.fc = nn.Linear(512, args.classes)
+        net = resnet18
+    elif args.net == 'resnet50':
+        resnet50 = models.resnet50(pretrained=True)
+        resnet50.fc = nn.Linear(512, args.classes)
+        net = resnet50
+    else:
+        print('the network name you have entered is not supported yet')
+        sys.exit()
+
+    if args.gpu: #use_gpu
+        net = net.cuda()
+
+    return net
 
 
 def get_network(args):
@@ -61,13 +182,13 @@ def get_network(args):
         net = xception()
     elif args.net == 'resnet18':
         from models.resnet import resnet18
-        net = resnet18()
+        net = resnet18(args.classes)
     elif args.net == 'resnet34':
         from models.resnet import resnet34
         net = resnet34()
     elif args.net == 'resnet50':
         from models.resnet import resnet50
-        net = resnet50()
+        net = resnet50(args.classes)
     elif args.net == 'resnet101':
         from models.resnet import resnet101
         net = resnet101()
@@ -162,6 +283,111 @@ def get_network(args):
 
     return net
 
+num_batch = 0
+batchsize = 128
+class SaveImage(object):
+    def __init__(self, path="./output"):
+        self.path = path
+        self.num = 1
+        self.max_num = 10 # max number in one batch, every batch will create a new SaveImage object
+
+    def __call__(self, img):
+        global num_batch
+        global batchsize
+        if num_batch == 1000:
+            return img
+        img_path = os.path.join(self.path, str(num_batch) + "_" + str(self.num) + ".jpg")
+        img.save(img_path)
+        num_batch += 1
+        return img
+
+class ToHSV(object):
+    def __init__(self):
+        pass
+
+    def __call__(self, img):
+        img = img.convert('HSV')
+        return img
+
+class MyCustomCrop(object):
+    """自定义裁剪
+    Args:
+        size（float）: persent to crop, width min, height min
+        p (float): 概率值
+    """
+
+    def __init__(self, snr, p=0.95):
+        assert isinstance(snr, float) or (isinstance(p, float))
+        self.size = snr
+        self.p = p
+
+    def __call__(self, img):
+        """
+        Args:
+            img (PIL Image): PIL Image
+        Returns:
+            PIL Image: PIL image.
+        """
+        if random.uniform(0, 1) < self.p:
+            img_ = numpy.array(img).copy()  # 转imge到ndrrary形式
+            img_bak = img_.copy()
+            img_bak[:,:] = (0,0,0)
+            h, w, c = img_.shape
+            w_p = random.uniform(self.size[0], 1.0)
+            h_p = random.uniform(self.size[1], 1.0)
+            crop_w = int(w * w_p)
+            crop_h = int(h * h_p)
+            w_a = random.randint(0,w-crop_w)
+            h_a = random.randint(0,int(min(h/4, h-crop_h)))
+            img_bak[h_a:h_a+crop_h, w_a:w_a+crop_w] = img_[h_a:h_a+crop_h, w_a:w_a+crop_w]
+            img = Image.fromarray(img_bak.astype('uint8')).convert('RGB')
+            #img.save("./test.jpg")
+        return img
+
+def get_custom_training_dataloader(path, mean, std, batch_size=16, num_workers=2, img_size=64, shuffle=True):
+    bathsize = batch_size * 10
+    """ return training dataloader
+    Args:
+        mean: mean of cifar100 training dataset
+        std: std of cifar100 training dataset
+        path: path to dataset
+        batch_size: dataloader batchsize
+        num_workers: dataloader num_works
+        shuffle: whether to shuffle
+    Returns: train_data_loader:torch dataloader object
+    """
+    # example
+    transform_train = transforms.Compose([
+        transforms.Resize((img_size, img_size)),
+        #transforms.Resize((int(img_size*1.3), int(img_size*1.3))),
+        #transforms.RandomCrop(img_size, padding=4),
+        #AddPepperNoise(0.95,0.5),
+        #transforms.RandomHorizontalFlip(),
+        #transforms.RandomAffine(degrees=15, translate=(0.2, 0.2), scale=(0.9, 1.1), shear=15),
+        #transforms.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.01),
+        RandAugment(),
+        #SaveImage(),
+        transforms.ToTensor(),
+        #transforms.RandomErasing(p=0.5, scale=(0.02, 0.33), ratio=(0.3, 3.3), value=114/255.0, inplace=False),
+    ])
+
+    cifar100_training = MyDataset(path, transform=transform_train)
+    cifar100_training_loader = DataLoader(
+        cifar100_training, shuffle=shuffle, num_workers=num_workers, batch_size=batch_size)
+
+    return cifar100_training_loader
+
+def get_custom_test_dataloader(path, mean, std, batch_size=16, num_workers=2, img_size=64, shuffle=True):
+    transform_test = transforms.Compose([
+        transforms.Resize((img_size, img_size)),
+        #ToHSV(),
+        transforms.ToTensor(),
+    ])
+    cifar100_test = MyDataset(path, transform=transform_test)
+    cifar100_test_loader = DataLoader(
+        cifar100_test, shuffle=shuffle, num_workers=num_workers, batch_size=batch_size)
+
+    return cifar100_test_loader
 
 def get_training_dataloader(mean, std, batch_size=16, num_workers=2, shuffle=True):
     """ return training dataloader

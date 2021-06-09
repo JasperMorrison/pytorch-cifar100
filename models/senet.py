@@ -155,8 +155,8 @@ class SEResNet(nn.Module):
 
         return nn.Sequential(*layers)
 
-def seresnet18():
-    return SEResNet(BasicResidualSEBlock, [2, 2, 2, 2])
+def seresnet18(class_num=100):
+    return SEResNet(BasicResidualSEBlock, [2, 2, 2, 2], class_num)
 
 def seresnet34():
     return SEResNet(BasicResidualSEBlock, [3, 4, 6, 3])
