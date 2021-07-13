@@ -125,7 +125,7 @@ def get_pretrained_network(args):
         net = resnet18
     elif args.net == 'resnet50':
         resnet50 = models.resnet50(pretrained=True)
-        resnet50.fc = nn.Linear(512, args.classes)
+        resnet50.fc = nn.Linear(512*4, args.classes)
         net = resnet50
     else:
         print('the network name you have entered is not supported yet')
@@ -283,22 +283,30 @@ def get_network(args):
 
     return net
 
-num_batch = 0
-batchsize = 128
+# Only num_worker = 1
 class SaveImage(object):
-    def __init__(self, path="./output"):
+    def __init__(self, bs=32, path="./output"):
         self.path = path
-        self.num = 1
-        self.max_num = 10 # max number in one batch, every batch will create a new SaveImage object
+        self.batchsize = bs
+        self.num_batch = 0
+        self.num = 0
+        self.max_num = 10 # max number in one batch
+        self.max_num = self.max_num if self.max_num < bs else bs 
+        self.init()
+        print("New SaveImage obj")
+    
+    def init(self):
+        self.num = 0
+        self.num_batch += 1
 
     def __call__(self, img):
-        global num_batch
-        global batchsize
-        if num_batch == 1000:
-            return img
-        img_path = os.path.join(self.path, str(num_batch) + "_" + str(self.num) + ".jpg")
-        img.save(img_path)
-        num_batch += 1
+        self.num += 1
+        if self.num <= self.max_num:
+            img_path = os.path.join(self.path, str(self.num_batch) + "_" + str(self.num) + ".jpg")
+            img.save(img_path)
+            print("save to", img_path)
+        if self.num == self.batchsize:
+            self.init()
         return img
 
 class ToHSV(object):
@@ -361,14 +369,14 @@ def get_custom_training_dataloader(path, mean, std, batch_size=16, num_workers=2
         transforms.Resize((img_size, img_size)),
         #transforms.Resize((int(img_size*1.3), int(img_size*1.3))),
         #transforms.RandomCrop(img_size, padding=4),
-        #AddPepperNoise(0.95,0.5),
+        AddPepperNoise(0.95,0.5),
         #transforms.RandomHorizontalFlip(),
         #transforms.RandomAffine(degrees=15, translate=(0.2, 0.2), scale=(0.9, 1.1), shear=15),
         #transforms.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.01),
         RandAugment(),
         #SaveImage(),
         transforms.ToTensor(),
-        #transforms.RandomErasing(p=0.5, scale=(0.02, 0.33), ratio=(0.3, 3.3), value=114/255.0, inplace=False),
+        transforms.RandomErasing(p=0.5, scale=(0.02, 0.33), ratio=(0.3, 3.3), value=114/255.0, inplace=False),
     ])
 
     cifar100_training = MyDataset(path, transform=transform_train)
@@ -380,6 +388,8 @@ def get_custom_training_dataloader(path, mean, std, batch_size=16, num_workers=2
 def get_custom_test_dataloader(path, mean, std, batch_size=16, num_workers=2, img_size=64, shuffle=True):
     transform_test = transforms.Compose([
         transforms.Resize((img_size, img_size)),
+        #AddPepperNoise(0.95,0.5),
+        #RandAugment(),
         #ToHSV(),
         transforms.ToTensor(),
     ])

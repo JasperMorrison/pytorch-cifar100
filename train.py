@@ -158,7 +158,7 @@ if __name__ == '__main__':
     parser.add_argument('-gpu', action='store_true', default=False, help='use gpu or not')
     parser.add_argument('-asl', action='store_true', default=False, help='use AsymmetricLoss')
     parser.add_argument('-focal_loss', action='store_true', default=False, help='use Focal loss')
-    parser.add_argument('-alpha', nargs='+', help='Set focal loss alpha')
+    parser.add_argument('-alpha', nargs='+', type=float, help='Set focal loss alpha')
     parser.add_argument('-b', type=int, default=128, help='batch size for dataloader')
     parser.add_argument('-warm', type=int, default=3, help='warm up training phase')
     parser.add_argument('-lr', type=float, default=0.1, help='initial learning rate')

@@ -31,7 +31,7 @@ def get_pretrained_network(args):
 
 def get_network(args):
     from models.resnet import resnet18
-    return resnet18(args.classes, cut_layer=args.cut_layer) 
+    return resnet18(args.classes) 
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-pretrained', action='store_true', default=False, help='use pretrained at torchvision or not')

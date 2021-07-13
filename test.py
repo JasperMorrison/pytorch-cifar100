@@ -23,6 +23,7 @@ from utils import *
 
 import os
 from PIL import Image
+from pathlib import Path
 
 if __name__ == '__main__':
 
@@ -53,7 +54,7 @@ if __name__ == '__main__':
         settings.CIFAR100_TRAIN_MEAN,
         settings.CIFAR100_TRAIN_STD,
         #settings.CIFAR100_PATH,
-        num_workers=4,
+        num_workers=1,
         img_size=args.size,
         batch_size=args.b,
     )
@@ -76,6 +77,15 @@ if __name__ == '__main__':
             path = sample['img_path']
 
             labels = np.argmax(labels, axis=1)
+
+            '''
+            from torchvision.utils import save_image
+            for img_index, iter_img in enumerate(image):
+                save_img_path = Path("output") / (str(labels[img_index].numpy())) / (str(n_iter) + "_" + str(img_index) + ".jpg")
+                os.makedirs(os.path.dirname(save_img_path), exist_ok=True)
+                save_image(iter_img, save_img_path)
+                print(path[img_index], "save to", save_img_path)
+            '''
             if args.gpu:
                 image = image.cuda()
                 labels = labels.cuda()
