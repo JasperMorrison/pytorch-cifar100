@@ -38,6 +38,7 @@ if __name__ == '__main__':
     parser.add_argument('-size', type=int, default=64, help='image size, for example 64')
     parser.add_argument('-net', type=str, required=True, help='net type')
     parser.add_argument('-test', type=str, required=True, help='test data dir')
+    parser.add_argument('-normal', action='store_true', default=False, help='use ImageFolder as dataset')
     parser.add_argument('-weights', type=str, required=True, help='the weights file you want to test')
     parser.add_argument('-gpu', action='store_true', default=False, help='use gpu or not')
     parser.add_argument('-b', type=int, default=16, help='batch size for dataloader')
@@ -49,11 +50,15 @@ if __name__ == '__main__':
     else:
         net = get_network(args)
 
-    cifar100_test_loader = get_custom_test_dataloader(
+    if not args.normal:
+        dataloader_func = get_custom_test_dataloader
+    else:
+        dataloader_func = get_normal_test_dataloader
+
+    cifar100_test_loader = dataloader_func(
         args.test,
         settings.CIFAR100_TRAIN_MEAN,
         settings.CIFAR100_TRAIN_STD,
-        #settings.CIFAR100_PATH,
         num_workers=1,
         img_size=args.size,
         batch_size=args.b,
@@ -76,8 +81,8 @@ if __name__ == '__main__':
             labels = sample['label']
             path = sample['img_path']
 
-            labels = np.argmax(labels, axis=1)
-
+            if not args.normal:
+                labels = np.argmax(labels, axis=1)
             '''
             from torchvision.utils import save_image
             for img_index, iter_img in enumerate(image):

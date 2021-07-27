@@ -114,7 +114,20 @@ class ImageFolderWithPaths(datasets.ImageFolder):
         path = self.imgs[index][0]
         # make a new tuple that includes original and the path
         tuple_with_path = (original_tuple + (path,))
-        return tuple_with_path
+        sample = {'image':tuple_with_path[0], 'label':tuple_with_path[1], 'img_path':tuple_with_path[2]}
+
+        '''
+        from skimage import io
+        import cv2
+        img = io.imread(tuple_with_path[2])
+        img = np.float32(cv2.resize(img, (128,128))) / 255
+        image = np.ascontiguousarray(np.transpose(img, (2, 0, 1)))  # channel first
+        image = image[np.newaxis, ...]  # 增加batch维
+        torch.tensor(image, requires_grad=True)
+        sample = {'image':image, 'label':tuple_with_path[1], 'img_path':tuple_with_path[2]}
+        '''
+        
+        return sample
 
 def get_pretrained_network(args):
     #import torchvision.models as models
@@ -366,17 +379,16 @@ def get_custom_training_dataloader(path, mean, std, batch_size=16, num_workers=2
     """
     # example
     transform_train = transforms.Compose([
-        transforms.Resize((img_size, img_size)),
-        #transforms.Resize((int(img_size*1.3), int(img_size*1.3))),
-        #transforms.RandomCrop(img_size, padding=4),
+        transforms.RandomAffine(degrees=25, translate=(0.2, 0.2), scale=(0.9, 1.1), shear=15),
+        #transforms.Resize((img_size, img_size)),
+        transforms.Resize((int(img_size*1.3), int(img_size*1.3))),
+        transforms.RandomCrop(img_size, padding=4),
         AddPepperNoise(0.95,0.5),
-        #transforms.RandomHorizontalFlip(),
-        #transforms.RandomAffine(degrees=15, translate=(0.2, 0.2), scale=(0.9, 1.1), shear=15),
-        #transforms.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.01),
-        RandAugment(),
-        #SaveImage(),
+        transforms.RandomHorizontalFlip(),
+        transforms.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.01),
+        #RandAugment(),
         transforms.ToTensor(),
-        transforms.RandomErasing(p=0.5, scale=(0.02, 0.33), ratio=(0.3, 3.3), value=114/255.0, inplace=False),
+        transforms.RandomErasing(p=0.95, scale=(0.02, 0.15), ratio=(0.3, 3.3), value=114/255.0, inplace=False),
     ])
 
     cifar100_training = MyDataset(path, transform=transform_train)
@@ -387,6 +399,7 @@ def get_custom_training_dataloader(path, mean, std, batch_size=16, num_workers=2
 
 def get_custom_test_dataloader(path, mean, std, batch_size=16, num_workers=2, img_size=64, shuffle=True):
     transform_test = transforms.Compose([
+        transforms.RandomAffine(degrees=25, translate=(0.2, 0.2), scale=(0.9, 1.1), shear=15),
         transforms.Resize((img_size, img_size)),
         #AddPepperNoise(0.95,0.5),
         #RandAugment(),
@@ -394,6 +407,30 @@ def get_custom_test_dataloader(path, mean, std, batch_size=16, num_workers=2, im
         transforms.ToTensor(),
     ])
     cifar100_test = MyDataset(path, transform=transform_test)
+    cifar100_test_loader = DataLoader(
+        cifar100_test, shuffle=shuffle, num_workers=num_workers, batch_size=batch_size)
+
+    return cifar100_test_loader
+
+def get_nornmal_training_dataloader(path, mean, std, batch_size=16, num_workers=2, img_size=64, shuffle=True, target_transform=None):
+    transform_train = transforms.Compose([
+        transforms.Resize((img_size, img_size)),
+        RandAugment(),
+        #SaveImage(),
+        transforms.ToTensor(),
+    ])
+    cifar100_training = ImageFolderWithPaths(root=path, transform=transform_train, target_transform=target_transform)
+    cifar100_training_loader = DataLoader(
+        cifar100_training, shuffle=shuffle, num_workers=num_workers, batch_size=batch_size)
+
+    return cifar100_training_loader
+
+def get_normal_test_dataloader(path, mean, std, batch_size=16, num_workers=2, img_size=64, shuffle=True, target_transform=None):
+    transform_test = transforms.Compose([
+        transforms.Resize((img_size, img_size)),
+        transforms.ToTensor(),
+    ])
+    cifar100_test = ImageFolderWithPaths(root=path, transform=transform_test, target_transform=target_transform)
     cifar100_test_loader = DataLoader(
         cifar100_test, shuffle=shuffle, num_workers=num_workers, batch_size=batch_size)
 

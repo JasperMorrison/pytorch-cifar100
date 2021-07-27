@@ -21,8 +21,8 @@ CHECKPOINT_PATH = 'checkpoint'
 #total training epoches
 #EPOCH = 200
 #MILESTONES = [60, 120, 160]
-EPOCH = 100
-MILESTONES = [10,20,30,50,60]
+EPOCH = 300
+MILESTONES = [100,200,250]
 
 #initial learning rate
 #INIT_LR = 0.1
@@ -35,11 +35,5 @@ TIME_NOW = datetime.now().strftime(DATE_FORMAT)
 LOG_DIR = 'runs'
 
 #save weights file per SAVE_EPOCH epoch
-SAVE_EPOCH = 5
-
-
-
-
-
-
+SAVE_EPOCH = 20
 

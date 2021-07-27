@@ -11,6 +11,7 @@ import sys
 import argparse
 import time
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -27,7 +28,6 @@ from utils import get_network, get_training_dataloader, get_test_dataloader, War
     most_recent_folder, most_recent_weights, last_epoch, best_acc_weights
 
 from utils import *
-
 from utils import get_custom_training_dataloader, get_custom_test_dataloader
 
 #ASL
@@ -42,10 +42,18 @@ def train(epoch):
     for batch_index, sample in enumerate(cifar100_training_loader):
         images = sample['image']
         labels = sample['label']
+        path = sample['img_path']
 
         if not args.asl:
             labels = np.argmax(labels, axis=1)
-
+        '''
+        from torchvision.utils import save_image
+        for img_index, iter_img in enumerate(images):
+            save_img_path = Path("output") / (str(labels[img_index].numpy())) / (str(batch_index) + "_" + str(img_index) + ".jpg")
+            os.makedirs(os.path.dirname(save_img_path), exist_ok=True)
+            save_image(iter_img, save_img_path)
+            print(path[img_index], "save to", save_img_path)
+        '''
         if epoch <= args.warm:
             warmup_scheduler.step()
 
@@ -178,9 +186,10 @@ if __name__ == '__main__':
         lock_layers = total_layers - args.fine
         print('total_layers', total_layers, 'lock layers', lock_layers) 
         for child in net.children():
-            if layers > lock_layers:
+            if layers >= lock_layers:
                 break
             layers += 1
+            print("try to lock layer", child)
             for param in child.parameters():
                 param.requires_grad = False
 
