@@ -185,11 +185,11 @@ if __name__ == '__main__':
             total_layers += 1
         lock_layers = total_layers - args.fine
         print('total_layers', total_layers, 'lock layers', lock_layers) 
-        for child in net.children():
+        for name, child in net.named_children():
             if layers >= lock_layers:
                 break
             layers += 1
-            print("try to lock layer", child)
+            print("try to lock layer", name)
             for param in child.parameters():
                 param.requires_grad = False
 

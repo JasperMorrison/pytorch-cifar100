@@ -34,6 +34,7 @@ if __name__ == '__main__':
     parser.add_argument('-fine', type=float, help='not used')
     parser.add_argument('-resume', action='store_true', default=False, help='not used')
     
+    parser.add_argument('-thresh', type=float, default=0.0, help='thresh')
     parser.add_argument('-classes', type=int, required=True, help='class number, for example 5')
     parser.add_argument('-size', type=int, default=64, help='image size, for example 64')
     parser.add_argument('-net', type=str, required=True, help='net type')
@@ -108,8 +109,15 @@ if __name__ == '__main__':
             #compute top1
             correct_1 += correct[:, :1].sum()
 
-            prediction = torch.argmax(output, 1)
-            res = prediction == labels
+            if args.thresh > 0:
+                prediction = torch.argmax(output, 1)
+                output_sigmoid = torch.sigmoid(output)
+                t = torch.arange(labels.shape[0]).reshape(1,-1).t()
+                res = output_sigmoid[t, labels].t()[0] >= args.thresh
+            else:
+                prediction = torch.argmax(output, 1)
+                res = prediction == labels
+            # res: [True, False, ...] for all labels
             for label_idx in range(len(labels)):
                 label_single = labels[label_idx]
                 correct_list[label_single] += res[label_idx].item()
@@ -117,7 +125,6 @@ if __name__ == '__main__':
                 t_or_f = res[label_idx].item()
                 if not t_or_f:
                     print(path[label_idx], "label:" ,label_single.cpu().numpy(), "predict:", prediction[label_idx].cpu().numpy())
-                    print(labels, prediction)
 
     print("Total correct:", sum(correct_list))
     print("Total:",sum(total_list))
