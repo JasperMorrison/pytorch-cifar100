@@ -21,7 +21,7 @@ def get_pretrained_network(args):
         net = resnet18
     elif args.net == 'resnet50':
         resnet50 = models.resnet50(pretrained=True)
-        resnet50.fc = nn.Linear(512, args.classes)
+        resnet50.fc = nn.Linear(512*4, args.classes)
         net = resnet50
     else:
         print('the network name you have entered is not supported yet')
@@ -38,9 +38,9 @@ parser.add_argument('-pretrained', action='store_true', default=False, help='use
 parser.add_argument('-classes', type=int, required=True, help='class number, for example 5')
 parser.add_argument('-size', type=int, required=True, help='input image size, 128')
 parser.add_argument('-weights', type=str, required=True, help='the weights of model')
+parser.add_argument('-net', type=str, default="resnet18", help='the weights of model')
 args = parser.parse_args()
 
-args.net = 'resnet18'
 
 if args.pretrained:
     model = get_pretrained_network(args)

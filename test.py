@@ -124,7 +124,7 @@ if __name__ == '__main__':
                 total_list[label_single] += 1
                 t_or_f = res[label_idx].item()
                 if not t_or_f:
-                    print(path[label_idx], "label:" ,label_single.cpu().numpy(), "predict:", prediction[label_idx].cpu().numpy())
+                    print(path[label_idx], "label:" ,label_single.cpu().numpy(), "predict:", prediction[label_idx].cpu().numpy(), output.cpu().numpy())
 
     print("Total correct:", sum(correct_list))
     print("Total:",sum(total_list))

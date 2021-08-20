@@ -22,6 +22,7 @@ import torchvision.transforms as transforms
 
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+from torchvision.utils import save_image
 
 from conf import settings
 from utils import get_network, get_training_dataloader, get_test_dataloader, WarmUpLR, \
@@ -35,6 +36,31 @@ from loss.loss import *
 #Focal loss
 from loss.focal_loss import *
 
+def my_save_image(images, labels, batch_index):
+    for img_index, iter_img in enumerate(images):
+        save_img_path = Path("output") / (str(labels[img_index].cpu().numpy())) / (str(batch_index) + "_" + str(img_index) + ".jpg")
+        os.makedirs(os.path.dirname(save_img_path), exist_ok=True)
+        save_image(iter_img, save_img_path)
+        print("save to", save_img_path)
+
+def rand_bbox(size, lam):
+    W = size[2]
+    H = size[3]
+    cut_rat = np.sqrt(1. - lam)
+    cut_w = np.int(W * cut_rat)
+    cut_h = np.int(H * cut_rat)
+
+    # uniform
+    cx = np.random.randint(W)
+    cy = np.random.randint(H)
+
+    bbx1 = np.clip(cx - cut_w // 2, 0, W)
+    bby1 = np.clip(cy - cut_h // 2, 0, H)
+    bbx2 = np.clip(cx + cut_w // 2, 0, W)
+    bby2 = np.clip(cy + cut_h // 2, 0, H)
+
+    return bbx1, bby1, bbx2, bby2
+
 def train(epoch):
 
     start = time.time()
@@ -46,14 +72,7 @@ def train(epoch):
 
         if not args.asl:
             labels = np.argmax(labels, axis=1)
-        '''
-        from torchvision.utils import save_image
-        for img_index, iter_img in enumerate(images):
-            save_img_path = Path("output") / (str(labels[img_index].numpy())) / (str(batch_index) + "_" + str(img_index) + ".jpg")
-            os.makedirs(os.path.dirname(save_img_path), exist_ok=True)
-            save_image(iter_img, save_img_path)
-            print(path[img_index], "save to", save_img_path)
-        '''
+
         if epoch <= args.warm:
             warmup_scheduler.step()
 
@@ -62,9 +81,29 @@ def train(epoch):
             labels = labels.cuda()
 
         optimizer.zero_grad()
-        outputs = net(images)
 
-        loss = loss_function(outputs, labels)
+       # cutmix: https://github.com/clovaai/CutMix-PyTorch
+        r = np.random.rand(1)
+        if args.beta > 0 and r < args.cutmix_prob:
+            # generate mixed sample
+            lam = np.random.beta(args.beta, args.beta)
+            rand_index = torch.randperm(images.size()[0]).cuda()
+            target_a = labels
+            target_b = labels[rand_index]
+            bbx1, bby1, bbx2, bby2 = rand_bbox(images.size(), lam)
+            images[:, :, bbx1:bbx2, bby1:bby2] = images[rand_index, :, bbx1:bbx2, bby1:bby2]
+            # adjust lambda to exactly match pixel ratio
+            lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (images.size()[-1] * images.size()[-2]))
+            # compute output
+            output = net(images)
+            loss = loss_function(output, target_a) * lam + loss_function(output, target_b) * (1. - lam)
+        else:
+            # compute output
+            outputs = net(images)
+            loss = loss_function(outputs, labels)
+
+        #my_save_image(images, labels, batch_index)
+
         loss.backward()
         optimizer.step()
 
@@ -172,6 +211,8 @@ if __name__ == '__main__':
     parser.add_argument('-lr', type=float, default=0.1, help='initial learning rate')
     parser.add_argument('-resume', action='store_true', default=False, help='resume training')
     parser.add_argument('-pretrained', action='store_true', default=False, help='using pytorch pretrained model')
+    parser.add_argument('-beta', default=0, type=float, help='hyperparameter beta')
+    parser.add_argument('-cutmix_prob', default=0, type=float, help='cutmix probability')
     args = parser.parse_args()
 
     if args.pretrained:
@@ -298,7 +339,7 @@ if __name__ == '__main__':
         acc = eval_training(epoch)
 
         #start to save best performance model after learning rate decay to 0.01
-        if epoch > settings.MILESTONES[0] and best_acc < acc:
+        if best_acc < acc:
             torch.save(net.state_dict(), checkpoint_path.format(net=args.net, epoch=epoch, type='best'))
             best_acc = acc
             continue

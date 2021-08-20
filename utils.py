@@ -366,7 +366,6 @@ class MyCustomCrop(object):
         return img
 
 def get_custom_training_dataloader(path, mean, std, batch_size=16, num_workers=2, img_size=64, shuffle=True):
-    bathsize = batch_size * 10
     """ return training dataloader
     Args:
         mean: mean of cifar100 training dataset
@@ -387,6 +386,7 @@ def get_custom_training_dataloader(path, mean, std, batch_size=16, num_workers=2
         transforms.RandomHorizontalFlip(),
         transforms.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.01),
         #RandAugment(),
+        #ToHSV(),
         transforms.ToTensor(),
         transforms.RandomErasing(p=0.95, scale=(0.02, 0.15), ratio=(0.3, 3.3), value=114/255.0, inplace=False),
     ])
@@ -399,7 +399,7 @@ def get_custom_training_dataloader(path, mean, std, batch_size=16, num_workers=2
 
 def get_custom_test_dataloader(path, mean, std, batch_size=16, num_workers=2, img_size=64, shuffle=True):
     transform_test = transforms.Compose([
-        transforms.RandomAffine(degrees=25, translate=(0.2, 0.2), scale=(0.9, 1.1), shear=15),
+        #transforms.RandomAffine(degrees=25, translate=(0.2, 0.2), scale=(0.9, 1.1), shear=15),
         transforms.Resize((img_size, img_size)),
         #AddPepperNoise(0.95,0.5),
         #RandAugment(),
