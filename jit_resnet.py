@@ -34,7 +34,7 @@ def get_network(args):
     return resnet18(args.classes) 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-pretrained', action='store_true', default=False, help='use pretrained at torchvision or not')
+parser.add_argument('-pretrained', action='store_false', default=True, help='use pretrained at torchvision or not')
 parser.add_argument('-classes', type=int, required=True, help='class number, for example 5')
 parser.add_argument('-size', type=int, required=True, help='input image size, 128')
 parser.add_argument('-weights', type=str, required=True, help='the weights of model')

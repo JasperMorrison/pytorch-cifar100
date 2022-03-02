@@ -24,6 +24,7 @@ from utils import *
 import os, shutil
 from PIL import Image
 from pathlib import Path
+from tqdm import tqdm
 
 if __name__ == '__main__':
 
@@ -43,7 +44,7 @@ if __name__ == '__main__':
     parser.add_argument('-weights', type=str, required=True, help='the weights file you want to test')
     parser.add_argument('-gpu', action='store_true', default=False, help='use gpu or not')
     parser.add_argument('-b', type=int, default=16, help='batch size for dataloader')
-    parser.add_argument('-pretrained', action='store_true', default=False, help='using pytorch pretrained model')
+    parser.add_argument('-pretrained', action='store_false', default=True, help='using pytorch pretrained model')
     args = parser.parse_args()
 
     if args.pretrained:
@@ -71,7 +72,7 @@ if __name__ == '__main__':
     total_list = list(0. for i in range(args.classes))
 
     with torch.no_grad():
-        for n_iter, sample in enumerate(cifar100_test_loader):
+        for n_iter, sample in enumerate(tqdm(cifar100_test_loader)):
             image = sample['image']
             path = sample['img_path']
 
@@ -80,7 +81,7 @@ if __name__ == '__main__':
 
             output = net(image)
             prediction = torch.argmax(output, 1)
-            print(prediction, path)
+            #print(prediction, path)
             for i,pred in enumerate(prediction):
                 pred = pred.cpu().numpy()
                 img_path = path[i]

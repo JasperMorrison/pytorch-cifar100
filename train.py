@@ -210,7 +210,7 @@ if __name__ == '__main__':
     parser.add_argument('-warm', type=int, default=3, help='warm up training phase')
     parser.add_argument('-lr', type=float, default=0.1, help='initial learning rate')
     parser.add_argument('-resume', action='store_true', default=False, help='resume training')
-    parser.add_argument('-pretrained', action='store_true', default=False, help='using pytorch pretrained model')
+    parser.add_argument('-pretrained', action='store_false', default=True, help='using pytorch pretrained model')
     parser.add_argument('-beta', default=0, type=float, help='hyperparameter beta')
     parser.add_argument('-cutmix_prob', default=0, type=float, help='cutmix probability')
     args = parser.parse_args()

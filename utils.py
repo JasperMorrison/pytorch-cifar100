@@ -252,10 +252,10 @@ def get_network(args):
         net = nasnet()
     elif args.net == 'attention56':
         from models.attention import attention56
-        net = attention56()
+        net = attention56(args.classes)
     elif args.net == 'attention92':
         from models.attention import attention92
-        net = attention92()
+        net = attention92(args.classes)
     elif args.net == 'seresnet18':
         from models.senet import seresnet18
         net = seresnet18()
