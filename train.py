@@ -70,7 +70,7 @@ def train(epoch):
         labels = sample['label']
         path = sample['img_path']
 
-        if not args.asl:
+        if not args.asl and not args.normal:
             labels = np.argmax(labels, axis=1)
 
         if epoch <= args.warm:
@@ -155,7 +155,7 @@ def eval_training(epoch=0, tb=True):
         images = sample['image']
         labels = sample['label']
 
-        if not args.asl:
+        if not args.asl and not args.normal:
             labels = np.argmax(labels, axis=1)
 
         if args.gpu:
@@ -213,6 +213,7 @@ if __name__ == '__main__':
     parser.add_argument('-pretrained', action='store_false', default=True, help='using pytorch pretrained model')
     parser.add_argument('-beta', default=0, type=float, help='hyperparameter beta')
     parser.add_argument('-cutmix_prob', default=0, type=float, help='cutmix probability')
+    parser.add_argument('-normal', action='store_true', default=False, help='use ImageFolder as dataset')
     args = parser.parse_args()
 
     if args.pretrained:
@@ -235,7 +236,12 @@ if __name__ == '__main__':
                 param.requires_grad = False
 
     #data preprocessing:
-    cifar100_training_loader = get_custom_training_dataloader(
+    if not args.normal:
+        dataloader_func = get_custom_training_dataloader
+    else:
+        dataloader_func = get_nornmal_training_dataloader
+
+    cifar100_training_loader = dataloader_func(
         args.data,
         settings.CIFAR100_TRAIN_MEAN,
         settings.CIFAR100_TRAIN_STD,
@@ -245,7 +251,7 @@ if __name__ == '__main__':
         shuffle=True
     )
 
-    cifar100_test_loader = get_custom_test_dataloader(
+    cifar100_test_loader = dataloader_func(
         args.test,
         settings.CIFAR100_TRAIN_MEAN,
         settings.CIFAR100_TRAIN_STD,

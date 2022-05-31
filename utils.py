@@ -130,16 +130,20 @@ class ImageFolderWithPaths(datasets.ImageFolder):
         return sample
 
 def get_pretrained_network(args):
-    #import torchvision.models as models
-    import models.pretrained_resnet as models
     if args.net == 'resnet18':
+        import models.pretrained_resnet as models
         resnet18 = models.resnet18(pretrained=True)
         resnet18.fc = nn.Linear(512, args.classes)
         net = resnet18
     elif args.net == 'resnet50':
+        import models.pretrained_resnet as models
         resnet50 = models.resnet50(pretrained=True)
         resnet50.fc = nn.Linear(512*4, args.classes)
         net = resnet50
+    elif args.net == 'mobilenetv2':
+        import torchvision.models as models
+        net = models.mobilenet_v2(pretrained=True)
+        net.conv2 = nn.Conv2d(1280, args.classes, 1)
     else:
         print('the network name you have entered is not supported yet')
         sys.exit()
@@ -414,10 +418,17 @@ def get_custom_test_dataloader(path, mean, std, batch_size=16, num_workers=2, im
 
 def get_nornmal_training_dataloader(path, mean, std, batch_size=16, num_workers=2, img_size=64, shuffle=True, target_transform=None):
     transform_train = transforms.Compose([
-        transforms.Resize((img_size, img_size)),
-        RandAugment(),
-        #SaveImage(),
+        transforms.RandomAffine(degrees=25, translate=(0.2, 0.2), scale=(0.9, 1.1), shear=15),
+        #transforms.Resize((img_size, img_size)),
+        transforms.Resize((int(img_size*1.3), int(img_size*1.3))),
+        transforms.RandomCrop(img_size, padding=4),
+        AddPepperNoise(0.95,0.5),
+        transforms.RandomHorizontalFlip(),
+        transforms.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.01),
+        #RandAugment(),
+        #ToHSV(),
         transforms.ToTensor(),
+        transforms.RandomErasing(p=0.95, scale=(0.02, 0.15), ratio=(0.3, 3.3), value=114/255.0, inplace=False),
     ])
     cifar100_training = ImageFolderWithPaths(root=path, transform=transform_train, target_transform=target_transform)
     cifar100_training_loader = DataLoader(

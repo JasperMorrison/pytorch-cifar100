@@ -10,7 +10,7 @@
 
 import torch
 import torch.nn as nn
-#import torchvision.models as models
+import torchvision.models as models
 import models.pretrained_resnet as models
 import argparse
 
@@ -23,6 +23,11 @@ def get_pretrained_network(args):
         resnet50 = models.resnet50(pretrained=True)
         resnet50.fc = nn.Linear(512*4, args.classes)
         net = resnet50
+    elif args.net == 'mobilenetv2':
+        import torchvision.models as models
+        net = models.mobilenet_v2(pretrained=True)
+        net.conv2 = nn.Conv2d(1280, args.classes, 1)
+
     else:
         print('the network name you have entered is not supported yet')
         sys.exit()
@@ -32,6 +37,7 @@ def get_pretrained_network(args):
 def get_network(args):
     from models.resnet import resnet18
     return resnet18(args.classes) 
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-pretrained', action='store_false', default=True, help='use pretrained at torchvision or not')
